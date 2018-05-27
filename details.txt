@@ -168,18 +168,23 @@ Design:
         when data was last accessed
 
 
-
-
-
-
-
-
-
-
-
     Have n threads
 
     When something is added to either fifo queue, the threads all awaken.
 
     Add:
         First check if the data exists
+
+
+
+
+
+
+Current Tasks:
+1) Notify threads and have them all act when list is updated
+2) Decide how to store data
+    - should i store it with the key
+    - what about direct mapping
+3) Create critical section for ADD/UPDATE
+4) Link threads with critical section so only one is able to write/update per job
+
