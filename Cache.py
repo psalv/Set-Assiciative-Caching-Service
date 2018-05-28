@@ -2,7 +2,7 @@
 import threading
 import time
 from enum import Enum
-# from queue import Queue
+
 
 # TODO: I probably want to package these classes within the Cache class, these interfaces don't need to be public
 
@@ -13,22 +13,19 @@ class CacheAction(Enum):
     GET = 2
 
 
-class ListNode(object):
-
-    def __init__(self, val):
-        self.val = val
-        self.next = None
-
-    def __repr__(self):
-        return str(self.val)
-
-
-
-
 class ThreadNotifierFIFOList(object):
 
+    class ListNode(object):
+
+        def __init__(self, val):
+            self.val = val
+            self.next = None
+
+        def __repr__(self):
+            return str(self.val)
+
     def __init__(self, _condition):
-        self.condition = _condition
+        self._condition = _condition
         self._head = None
         self._tail = None
 
@@ -39,47 +36,30 @@ class ThreadNotifierFIFOList(object):
 
         # if threads are asleep then wake them and make them do the worker
 
-        self.condition.acquire()
-        self.condition.notify_all()
-        self.condition.release()
-
-
-        # for condition in conditions:
-        #     with condition:
-        #         condition.notify_all()
+        self._condition.acquire()
+        self._condition.notify_all()         # all of the threads will awaken
+        self._condition.release()
 
         if self._head is None:
-            self._head = ListNode(item)
+            self._head = ThreadNotifierFIFOList.ListNode(item)
             self._tail = self._head
         else:
-            self._tail.next = ListNode(item)
+            self._tail.next = ThreadNotifierFIFOList.ListNode(item)
             self._tail = self._tail.next
 
     def peek(self):
-        return self._head.val
+        if self._head is not None:
+            return self._head.val
+        else:
+            return None
 
     def pop(self):
-
-        # if there is another job have the threads do the worker on them
-        # otherwise the threads sleep
-
-        # with _cond:
-        #     while self._head is None:
-        #         _cond.wait()
-
         if self._head:
             item = self._head.val
             self._head = self._head.next
             return item
         else:
             return None
-
-    # def __str__(self):
-    #     cur = self._head
-    #     representation = ''
-    #     while cur is not None:
-    #         representation +=
-    #     return [str(cur) while]
 
 
 class WorkerJob(object):
@@ -88,72 +68,243 @@ class WorkerJob(object):
         self.job_type = job_type
         self.job_data = job_data
 
-condition = threading.Condition()
-l = ThreadNotifierFIFOList(condition)
-n = 3
-# thread_start_semaphore = threading.Semaphore(n)         # TODO: this needs to be a class variable
-
-NUM = 0
+    def __repr__(self):
+        return str(self.job_type) + " - " + str(self.job_data)
 
 
-def worker():
-    global condition
-    global n
-    # global thread_start_semaphore
-    # global NUM
+class NWaySetAssociativeCache(object):
 
-    while True:
+    def __init__(self, n=4, replacement_algorithm="LRU", lines=32):
 
-        with condition:
-            while l.is_empty():
-                condition.wait()
+        # Setting the replacement algorithm (Either LRU, MRU, or user-defined)
+        self._replacement_algorithm = None
+        if not self._set_replacement_algorithm(replacement_algorithm):
+            raise ValueError("Replacement algorithm parameter must designate LRU or MRU or be a function.")
 
-            print(threading.get_ident())
-
-            # Waiting for all threads to be active
-            # thread_start_semaphore.acquire()
-            # NUM += 1
-            # while NUM != n:
-            #     time.sleep(0.0001)
-
-            print("worker has woken: ", threading.get_ident())
-            time.sleep(0.001)
-
-            print("object in q: ", l.pop())
-
-            # Decreasing counter
-            # NUM -= 1
-            # thread_start_semaphore.release()
-
-
-def create_threads():
-    for i in range(n):                                                  # todo: change to self.n
-        # conditions.append(threading.Condition())                        # todo: this needs to be a class variable
-        # t = threading.Thread(target=worker, args=(conditions[-1], n,))
-        t = threading.Thread(target=worker)
-        t.daemon = True
-        t.start()
-        print(t)
-
-create_threads()
-
-l.append(1)
-
-time.sleep(1)
-
-
-# t1.start()
-# time.sleep(2)
-# t1.start()
+        self._number_of_sets = n
+        self._lines_per_set = lines
 
 
 
+        # TODO
+        self._data_information = {}                             # key: [most recent access time, line number]
+        self._set_fullness = [0] * n                            # number of elements currently in each set
+        self._sets = [[None] * self._lines_per_set] * n           # the sets themselves, arrays with l lines, there are n of them
+
+
+
+        self._condition = threading.Condition()
+        self._jobs_queue = ThreadNotifierFIFOList(self._condition)
+        self._job_finished = threading.Barrier(self._number_of_sets)
+        self._read_write_lock = threading.Lock()
+
+        # Creating dedicated threads for reading/writing to each set
+        self._create_threads()
+
+
+
+    def _set_replacement_algorithm(self, replacement_algorithm):
+
+        # Checking for custom replacement algorithm
+        if callable(replacement_algorithm):
+            self._replacement_algorithm = replacement_algorithm
+            return True
+
+        # Checking for one of the preset replacement algorithms
+        elif replacement_algorithm.isalpha():
+            replacement_algorithm = replacement_algorithm.upper()
+            if replacement_algorithm == "LRU":
+                self._replacement_algorithm = self._lru
+                return True
+            elif replacement_algorithm == "MRU":
+                self._replacement_algorithm = self._mru
+                return True
+
+        # If we reach the end then no valid replacement algorithm was given
+        return False
+
+    def _create_threads(self):
+        for i in range(self._number_of_sets):
+            worker_thread = threading.Thread(target=self._worker, args=(i,))
+            worker_thread.daemon = True
+            worker_thread.start()
+
+    def _worker(self, worker_thread_id):  # worker_thread_id corresponds with a set that this thread will always work on
+        while True:
+
+            with self._condition:
+                if self._jobs_queue.is_empty():
+                    self._condition.wait()
+
+            current_job = self._jobs_queue.peek()
+
+            if current_job is None:
+                continue
+
+            self._read_write_lock.acquire()
+
+            if current_job is self._jobs_queue.peek():
+
+                print('thread: ', worker_thread_id, 'executing: ', current_job)
+                # update required fields
+                # time.time() ## to get the current time for comparisons
+
+                self._jobs_queue.pop()
+
+            self._read_write_lock.release()
+
+            self._job_finished.wait()
+
+    def _lru(self, current_set):
+        """
+        :param current_set: a full set
+        :return: the index of the least recently used element within this set
+        """
+        pass
+
+    def _mru(self, current_set):
+        """
+        :param current_set: a full set
+        :return: the index of the most recently used element within this set
+        """
+        pass
+
+    def put(self, key, value):
+        if key not in self._data_information:
+            self._jobs_queue.append(WorkerJob(CacheAction.ADD, (key, value)))
+        else:
+            self._jobs_queue.append(WorkerJob(CacheAction.UPDATE, (key, value)))
+
+    def get(self, key):
+        self._jobs_queue.append(WorkerJob(CacheAction.GET, key))
+        # TODO:wait for thread response and then return the correct data, I can probably use a threading.Event for this.
+
+
+if __name__ == '__main__':
+    test_cache = NWaySetAssociativeCache()
+    test_cache.put(1, 1)
+    test_cache.put(2, 2)
+    test_cache.put(3, 3)
+    time.sleep(2)
 
 
 
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+### HARD TIME
+
+
+#
+# if current_job.job_type is CacheAction.ADD:
+#     print("ADD")
+#
+#     # find position
+#     # possibly involve the replacement algorithm
+#
+#     self._read_write_lock.acquire()
+#
+#     if current_job is self._jobs_queue.peek():
+#         # update required fields
+#
+#         self._jobs_queue.pop()
+#
+#     self._read_write_lock.release()
+#
+#     # release lock
+#
+# elif current_job.job_type is CacheAction.UPDATE:
+#
+#     # search expected position
+#
+#
+#     self._read_write_lock.acquire()
+#
+#     if current_job is self._jobs_queue.peek():
+#         # update required fields
+#
+#         self._jobs_queue.pop()
+#
+#     self._read_write_lock.release()
+#
+#     # if we find the correct value
+#
+#     # updated required fields
+#
+#     # pop the job
+#
+# else:  # CacheAction.GET
+#     pass
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#### DEATH ROW
+
+
+# class FinishedEvent(threading.Event):
+#
+#     def __init__(self, _n):
+#         super().__init__()
+#         self._n = _n
+#         self._count = 0
+#
+#     def set(self):
+#         self._count += 1
+#         if self._count == self._n:
+#             with self._cond:
+#                 self._flag = True
+#                 self._cond.notify_all()
+#
+#     def clear(self):
+#         with self._cond:
+#             self._flag = False
+#             self._count = 0
 
 
 
@@ -194,68 +345,22 @@ time.sleep(1)
 
 
 
-
-
-
-
-
-
-
-# time.time() ## to get the current time for comparisons
-
-
-
-
 #
-# class NWaySetAssociativeCache(object):
 #
-#     def __init__(self, n=4, replacement_algorithm="LRU", lines=32):
-#         self.n = n
-#         self.l = lines
-#         self.data_information = {}                  # key: [most recent access time, line number]
-#         self.set_fullness = [0] * n                 # number of elements currently in each set
-#         self.sets = [[None] * self.l] * n           # the sets themselves, arrays with l lines, there are n of them
 #
-#         self.jobs_queue = ThreadNotifierFIFOList()
+# def worker(condition, jobs_queue):
+#     while True:
 #
-#         # Checking for custom replacement algorithm
-#         if callable(replacement_algorithm):
-#             self.replacement_algorithm = replacement_algorithm
-#             return
+#         with condition:
+#             if l.is_empty():
+#                 condition.wait()
 #
-#         # Checking for one of the preset replacement algorithms
-#         elif replacement_algorithm.isalpha():
-#             replacement_algorithm = replacement_algorithm.upper()
-#             if replacement_algorithm == "LRU":
-#                 self.replacement_algorithm = self._lru
-#                 return
-#             elif replacement_algorithm == "MRU":
-#                 self.replacement_algorithm = self._mru
-#                 return
+#             print("worker has woken: ", threading.get_ident())
+#             time.sleep(0.001)
 #
-#         # If we reach the end then no valid replacement algorithm was given
-#         raise ValueError("Replacement algorithm parameter must designate LRU or MRU or be a function.")
+#             # do work
 #
-#     def _lru(self, current_set):
-#         """
-#         :param current_set: a full set
-#         :return: the index of the least recently used element within this set
-#         """
-#         pass
+#             # need to have critical sections associated with popping and doing the actual updates to the class variables
+#                 # time.time() ## to get the current time for comparisons
 #
-#     def _mru(self):
-#         """
-#         :param current_set: a full set
-#         :return: the index of the most recently used element within this set
-#         """
-#         pass
-#
-#     def add(self, key, value):
-#         if key not in self.data_information:
-#             self.jobs_queue.append(WorkerJob(CacheAction.ADD, (key, value)))
-#         else:
-#             self.jobs_queue.append(WorkerJob(CacheAction.UPDATE, (key, value)))
-#
-#     def get(self, key):
-#         self.jobs_queue.append(WorkerJob(CacheAction.GET, key))
-#         # TODO: wait for thread response and then return the correct data
+#             l.pop()
