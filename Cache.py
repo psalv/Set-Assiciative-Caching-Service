@@ -141,49 +141,53 @@ class NWaySetAssociativeCache(object):
             current_job = self._jobs_queue.peek()
 
             # If another thread completes the action first
-            if current_job is None:
-                continue
+            if current_job is not None:
 
+                # Inserting new data
+                if current_job.job_type is CacheAction.ADD:
 
-            if current_job.job_type is CacheAction.ADD:
-
-                # TODO: find open position, may need to invoke replacemnt algorithm
-
-                # Critical section, only allow changes to the cache if the job still exists
-                # Job will be removed before the end of the thread safe critical section
-                self._write_lock.acquire()
-
-                if current_job is self._jobs_queue.peek():
-
-                    # TODO: update the associated fields, using the open position
-
-                    # The job has been completed
-                    self._jobs_queue.pop()
-
-                self._write_lock.release()
-
-            elif current_job.job_type in [CacheAction.UPDATE, CacheAction.GET]:
-
-                # TODO: find expected position, if the element is not here then continue
-
-                if current_job.job_type is CacheAction.GET:
-                    pass    # TODO: temporarily store the data in a shared class variable indicating the set and line number
-                    # TODO: set an Event to tell the main thread
-                    self._read_event.set()
-
-                else:
+                    # TODO: find open position, may need to invoke replacemnt algorithm
 
                     # Critical section, only allow changes to the cache if the job still exists
                     # Job will be removed before the end of the thread safe critical section
                     self._write_lock.acquire()
 
                     if current_job is self._jobs_queue.peek():
-                        # TODO: update the associated fields, using the found position
+
+                        # TODO: update the associated fields, using the open position
 
                         # The job has been completed
                         self._jobs_queue.pop()
 
                     self._write_lock.release()
+
+                # Accessing/updating existing data
+                else:
+
+                    # TODO: find position of current data, if the element is not here then break (cannot continue, need to meet at barrier)
+
+                    if current_job.job_type is CacheAction.GET:
+                        pass    # TODO: temporarily store the data in a shared class variable indicating the set and line number
+                        # TODO: set an Event to tell the main thread
+                        self._read_event.set()
+
+                    else:
+
+                        # Critical section, only allow changes to the cache if the job still exists
+                        # Job will be removed before the end of the thread safe critical section
+                        self._write_lock.acquire()
+
+                        if current_job is self._jobs_queue.peek():
+                            # TODO: update the associated fields, using the found position
+
+                            # The job has been completed
+                            self._jobs_queue.pop()
+
+                        self._write_lock.release()
+
+            # Barrier to ensure that all threads finish the loop at the same time
+            # This prevents a single thread from taking all of the jobs
+            self._job_finished.wait()
 
     def _lru(self, current_set):
         """
