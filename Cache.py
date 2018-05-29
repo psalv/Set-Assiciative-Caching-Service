@@ -96,12 +96,14 @@ class NWaySetAssociativeCache(object):
         self._condition = threading.Condition()
         self._jobs_queue = ThreadNotifierFIFOList(self._condition)
         self._job_finished = threading.Barrier(self._number_of_sets)
-        self._read_write_lock = threading.Lock()
+        self._write_lock = threading.Lock()
+        self._read_event = threading.Event()
+
+        self._temp_get_set_number = None
+        self._temp_get_line_number = None
 
         # Creating dedicated threads for reading/writing to each set
         self._create_threads()
-
-
 
     def _set_replacement_algorithm(self, replacement_algorithm):
 
@@ -138,28 +140,57 @@ class NWaySetAssociativeCache(object):
 
             current_job = self._jobs_queue.peek()
 
+            # If another thread completes the action first
             if current_job is None:
                 continue
 
-            self._read_write_lock.acquire()
 
-            if current_job is self._jobs_queue.peek():
+            if current_job.job_type is CacheAction.ADD:
 
-                print('thread: ', worker_thread_id, 'executing: ', current_job)
-                # update required fields
-                # time.time() ## to get the current time for comparisons
+                # TODO: find open position, may need to invoke replacemnt algorithm
 
-                self._jobs_queue.pop()
+                # Critical section, only allow changes to the cache if the job still exists
+                # Job will be removed before the end of the thread safe critical section
+                self._write_lock.acquire()
 
-            self._read_write_lock.release()
+                if current_job is self._jobs_queue.peek():
 
-            self._job_finished.wait()
+                    # TODO: update the associated fields, using the open position
+
+                    # The job has been completed
+                    self._jobs_queue.pop()
+
+                self._write_lock.release()
+
+            elif current_job.job_type in [CacheAction.UPDATE, CacheAction.GET]:
+
+                # TODO: find expected position, if the element is not here then continue
+
+                if current_job.job_type is CacheAction.GET:
+                    pass    # TODO: temporarily store the data in a shared class variable indicating the set and line number
+                    # TODO: set an Event to tell the main thread
+                    self._read_event.set()
+
+                else:
+
+                    # Critical section, only allow changes to the cache if the job still exists
+                    # Job will be removed before the end of the thread safe critical section
+                    self._write_lock.acquire()
+
+                    if current_job is self._jobs_queue.peek():
+                        # TODO: update the associated fields, using the found position
+
+                        # The job has been completed
+                        self._jobs_queue.pop()
+
+                    self._write_lock.release()
 
     def _lru(self, current_set):
         """
         :param current_set: a full set
         :return: the index of the least recently used element within this set
         """
+        # TODO, implement LRU algorithm
         pass
 
     def _mru(self, current_set):
@@ -167,6 +198,7 @@ class NWaySetAssociativeCache(object):
         :param current_set: a full set
         :return: the index of the most recently used element within this set
         """
+        # TODO, implement MRU algorithm
         pass
 
     def put(self, key, value):
@@ -177,7 +209,11 @@ class NWaySetAssociativeCache(object):
 
     def get(self, key):
         self._jobs_queue.append(WorkerJob(CacheAction.GET, key))
-        # TODO:wait for thread response and then return the correct data, I can probably use a threading.Event for this.
+        with self._read_event:
+            self._read_event.wait()
+            self._read_event.clear()
+
+        # TODO: using the temporary variables return the required data
 
 
 if __name__ == '__main__':
