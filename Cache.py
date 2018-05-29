@@ -36,9 +36,8 @@ class ThreadNotifierFIFOList(object):
 
         # if threads are asleep then wake them and make them do the worker
 
-        self._condition.acquire()
-        self._condition.notify_all()         # all of the threads will awaken
-        self._condition.release()
+        with self._condition:
+            self._condition.notify_all()         # all of the threads will awaken
 
         if self._head is None:
             self._head = ThreadNotifierFIFOList.ListNode(item)
@@ -72,13 +71,66 @@ class WorkerJob(object):
         return str(self.job_type) + " - " + str(self.job_data)
 
 
+"""
+
+Key mapping strategy
+
+I will be using double hashing.
+
+To reduce the time it will take to entirely fill the cache, the cache will need to be larger than the number of 
+elements it stores, and then when it reaches a certain threshold of fullness it will begin removing items.
+
+    Make the table double the size of the number of available lines
+
+This means that the removed items will not necessarily be in the position of the new item.
+
+This also means that removed items must be marked with an AVAILABLE flag for open addressing.
+
+
+
+
+
+
+To solve:
+1) Store data in limited space
+2) Store and update recently used
+3) Be able to sift through items by hw recently they were used
+
+    Idea: keep doubley linked list of everything that gets used (just pointers on the DataObjects)
+    Update with each use (newly used at front, old at the back)
+    
+        Wouldn't need to keep the time of access, just the order
+        Need a wrapper class for the data that has prev and next pointers
+        
+        ** I like this idea **
+
+
+
+
+
+Email question:
+I've been keep away from HashMaps as a way to store the data because I do not have explicit control
+
+Hi!
+
+I was working on this problem today (I implemented parallelization), and have reached the point where I'd like to refine 
+the way in which I'm storing the data.
+
+I had planned to implement a custom, fixed-size of hash table; however, the only advantage that I can see in using my own
+over a hash map would be that when implementing my own I have explicit control over the size of the cache. 
+
+My question then, is do you think the trade off of greater code complexity for more control 
+
+"""
+
+
 class NWaySetAssociativeCache(object):
 
     def __init__(self, n=4, replacement_algorithm="LRU", lines=32):
 
         # Setting the replacement algorithm (Either LRU, MRU, or user-defined)
         self._replacement_algorithm = None
-        if not self._set_replacement_algorithm(replacement_algorithm):
+        if not self.set_replacement_algorithm(replacement_algorithm):
             raise ValueError("Replacement algorithm parameter must designate LRU or MRU or be a function.")
 
         self._number_of_sets = n
@@ -105,7 +157,7 @@ class NWaySetAssociativeCache(object):
         # Creating dedicated threads for reading/writing to each set
         self._create_threads()
 
-    def _set_replacement_algorithm(self, replacement_algorithm):
+    def set_replacement_algorithm(self, replacement_algorithm):
 
         # Checking for custom replacement algorithm
         if callable(replacement_algorithm):
@@ -153,6 +205,7 @@ class NWaySetAssociativeCache(object):
                     self._write_lock.acquire()
 
                     if current_job is self._jobs_queue.peek():
+                        print(worker_thread_id, current_job)
 
                         # TODO: update the associated fields, using the open position
 
