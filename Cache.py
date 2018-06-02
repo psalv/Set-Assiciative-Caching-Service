@@ -71,7 +71,33 @@ class WorkerJob(object):
         return str(self.job_type) + " - " + str(self.job_data)
 
 
+class CacheData(object):
+
+    def __init__(self, key, data, next=None):
+        self.key = key
+        self.data = data
+        self.next = next        # object used immediately less recently than this object
+        self.prev = prev        # object used immediately more recently than this object
+
+
+
 """
+
+Look into using libraries to make my code simpler, it doesn't look good when I create things from
+scratch that I could have used a library for. It makes me seem inexperienced and inefficient.
+
+- Queue library
+- Using some type of fixed size dictionary/hashmap
+
+
+
+
+
+
+
+
+
+
 
 Key mapping strategy
 
@@ -93,8 +119,12 @@ This also means that removed items must be marked with an AVAILABLE flag for ope
 
 To solve:
 1) Store data in limited space
-2) Store and update recently used
-3) Be able to sift through items by hw recently they were used
+
+    Having a set storing the keys seems counterproductive
+
+    
+    2) Store and update recently used
+    3) Be able to sift through items by hw recently they were used
 
     Idea: keep doubley linked list of everything that gets used (just pointers on the DataObjects)
     Update with each use (newly used at front, old at the back)
@@ -103,6 +133,8 @@ To solve:
         Need a wrapper class for the data that has prev and next pointers
         
         ** I like this idea **
+        
+        
 
 
 
@@ -139,9 +171,12 @@ class NWaySetAssociativeCache(object):
 
 
         # TODO
-        self._data_information = {}                             # key: [most recent access time, line number]
-        self._set_fullness = [0] * n                            # number of elements currently in each set
-        self._sets = [[None] * self._lines_per_set] * n           # the sets themselves, arrays with l lines, there are n of them
+        self._keys = set()
+        self._set_fullness = [0] * n                                  # number of elements currently in each set
+        self._sets = [[None] * self._lines_per_set] * 2 * n           # the sets themselves, arrays with l lines, there are n of them
+
+        self._data_head = None
+        self._data_tail = None
 
 
 
