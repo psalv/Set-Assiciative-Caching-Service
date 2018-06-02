@@ -1,6 +1,5 @@
 
 import threading
-import time
 from enum import Enum
 
 
@@ -232,15 +231,15 @@ class NWaySetAssociativeCache(object):
 
     def _lru(self, current_set_id):
         """
-        :param current_set: the ID of the set being accessed
-        :return: the index of the least recently used element within this set
+        :param current_set_id: the ID of the set being accessed
+        :return: the key of the least recently used element within this set
         """
         return self._data_tail[current_set_id].key
 
     def _mru(self, current_set_id):
         """
-        :param current_set: the ID of the set being accessed
-        :return: the index of the most recently used element within this set
+        :param current_set_id: the ID of the set being accessed
+        :return: the key of the most recently used element within this set
         """
         return self._data_head[current_set_id].key
 
@@ -260,136 +259,3 @@ class NWaySetAssociativeCache(object):
             self._get_condition.wait()
 
         return self._sets[self._get_data_set_index][key].data
-
-if __name__ == '__main__':
-    test_cache = NWaySetAssociativeCache()
-    test_cache.put(1, 10)
-    test_cache.put(2, 20)
-
-    time.sleep(0.0001)
-
-    print(test_cache.get(1))
-    print(test_cache.get(2))
-
-
-"""
-Tests to create:
-- Insert / Get / update
-    - multiple items
-    - different/mixed types
-
-- Invalid input
-    - get
-    - custom replacement
-
-- Very large input
-
-- Both replacement algorithms
-    - get afterwards
-    - multiple times
-"""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#### DEATH ROW
-
-
-# class FinishedEvent(threading.Event):
-#
-#     def __init__(self, _n):
-#         super().__init__()
-#         self._n = _n
-#         self._count = 0
-#
-#     def set(self):
-#         self._count += 1
-#         if self._count == self._n:
-#             with self._cond:
-#                 self._flag = True
-#                 self._cond.notify_all()
-#
-#     def clear(self):
-#         with self._cond:
-#             self._flag = False
-#             self._count = 0
-
-
-
-
-
-
-
-
-
-
-
-# def worker():
-#     # read in value from the jobs queue
-#     # test if it is an update or not
-#
-#     # if not update, find next index to remove (if set is full fidn index based on replacement algorithm)
-#     # if update, then find the current position of the element and update accordingly (will only be in 1 set)
-#             # issue: how do I differentiate the data on the same line of one set as another if keys are kept external ????
-#
-#             # a way around this: store the key with the value, so we will know what position the key is in
-#             # and then when we check we only take the line where the key matches
-#
-#
-#
-#     # once i know which line to alter then I enter a thread safe region where the data is actually updated
-#
-#     # a note on races: we want to reduce the number of misses so we should only actually do replacement if there definitely
-#     # isn't an available spot in one of the four sets, so there should be a check before doing this
-#         # i don't think this is necessary actually, because we can just use the first to get placing it in alwyas
-#
-#     # on add: all threads race to get to this position and the first is the one that adds into it's corresponding set
-#
-#     #  on update: when a thread gets to this position it should only have an index to replace if it is the correct set,
-#         # the other sets should have None and then exit gracefully
-#         # this is where the issue will occur since multiple threads may have information on this line
-#
-#     print('In thread')
-
-
-
-#
-#
-#
-# def worker(condition, jobs_queue):
-#     while True:
-#
-#         with condition:
-#             if l.is_empty():
-#                 condition.wait()
-#
-#             print("worker has woken: ", threading.get_ident())
-#             time.sleep(0.001)
-#
-#             # do work
-#
-#             # need to have critical sections associated with popping and doing the actual updates to the class variables
-#                 # time.time() ## to get the current time for comparisons
-#
-#             l.pop()
