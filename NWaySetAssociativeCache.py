@@ -272,6 +272,22 @@ if __name__ == '__main__':
     print(test_cache.get(2))
 
 
+"""
+Tests to create:
+- Insert / Get / update
+    - multiple items
+    - different/mixed types
+
+- Invalid input
+    - get
+    - custom replacement
+
+- Very large input
+
+- Both replacement algorithms
+    - get afterwards
+    - multiple times
+"""
 
 
 
