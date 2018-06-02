@@ -3,24 +3,6 @@ import unittest
 import time
 from NWaySetAssociativeCache import NWaySetAssociativeCache
 
-"""
-Tests to create:
-- Insert / Get / update
-    - multiple items
-    - different/mixed types
-
-- Invalid input
-    - get
-    - custom replacement
-
-- Very large input
-
-- Caches of different sizes
-
-- Both replacement algorithms
-    - get afterwards
-    - multiple times
-"""
 
 class PutTestCase(unittest.TestCase):
 
@@ -56,9 +38,6 @@ class PutTestCase(unittest.TestCase):
             self.assertEqual(instances, 1)
 
     def test_put_items_of_mixed_types(self):
-        pass
-
-    def test_put_update_item(self):
         pass
 
 
@@ -107,12 +86,82 @@ class GetTestCase(unittest.TestCase):
         self.assertEqual(self.cache.get(new_object1), new_object2)
         self.assertEqual(self.cache.get(new_object2), 'buzz')
 
-    def test_get_update_item(self):
+
+class UpdateTestCase(unittest.TestCase):
+
+    def setUp(self):
+        self.cache = NWaySetAssociativeCache()
+
+    def tearDown(self):
+        del self.cache
+
+    def test_update_item(self):
+        pass
+
+    def test_update_multiple_items(self):
+        pass
+
+    def test_update_item_mixed_type(self):
+        pass
+
+    def test_get_updated_item(self):
         self.cache.put(1, 10)
         self.cache.put(1, 20)
         time.sleep(0.001)
         self.assertEqual(self.cache.get(1), 20)
 
+
+class InvalidInputTestCase(unittest.TestCase):
+
+    def test_get_with_nonexistant_key(self):
+        cache = NWaySetAssociativeCache()
+
+        del cache
+
+    def test_initialization_with_invalid_replacement_algorithm(self):
+        pass
+
+
+class ReplacementAlgorithmTestCase(unittest.TestCase):
+
+    def setUp(self):
+        self.cache = NWaySetAssociativeCache()
+
+    def tearDown(self):
+        del self.cache
+
+    def test_lru_algorithm_once(self):
+        pass
+
+    def test_lru_algorithm_multiple(self):
+        pass
+
+    def test_mru_algorithm_once(self):
+        pass
+
+    def test_mru_algorithm_multiple(self):
+        pass
+
+    def test_custom_algorithm(self):
+        pass
+
+
+class CacheSizeTestCase(unittest.TestCase):
+
+    def test_single_set(self):
+        pass
+
+    def test_multiple_sets(self):
+        pass
+
+    def test_single_line(self):
+        pass
+
+    def test_multiple_lines(self):
+        pass
+
+    def test_very_large_cache(self):
+        pass
 
 if __name__ == '__main__':
     unittest.main()
