@@ -4,9 +4,6 @@ import time
 from enum import Enum
 
 
-# TODO: I probably want to package these classes within the Cache class, these interfaces don't need to be public
-
-
 class CacheAction(Enum):
     ADD = 0
     UPDATE = 1
@@ -61,6 +58,13 @@ class ThreadNotifierFIFOList(object):
             return None
 
 
+class JobData(object):
+
+    def __init__(self, key, data=None):
+        self.key = key
+        self.data = data
+
+
 class WorkerJob(object):
 
     def __init__(self, job_type, job_data):
@@ -73,87 +77,11 @@ class WorkerJob(object):
 
 class CacheData(object):
 
-    def __init__(self, key, data, next=None):
+    def __init__(self, key, data, next_item):
         self.key = key
         self.data = data
-        self.next = next        # object used immediately less recently than this object
-        self.prev = prev        # object used immediately more recently than this object
-
-
-
-"""
-
-Look into using libraries to make my code simpler, it doesn't look good when I create things from
-scratch that I could have used a library for. It makes me seem inexperienced and inefficient.
-
-- Queue library
-- Using some type of fixed size dictionary/hashmap
-
-
-
-
-
-
-
-
-
-
-
-Key mapping strategy
-
-I will be using double hashing.
-
-To reduce the time it will take to entirely fill the cache, the cache will need to be larger than the number of 
-elements it stores, and then when it reaches a certain threshold of fullness it will begin removing items.
-
-    Make the table double the size of the number of available lines
-
-This means that the removed items will not necessarily be in the position of the new item.
-
-This also means that removed items must be marked with an AVAILABLE flag for open addressing.
-
-
-
-
-
-
-To solve:
-1) Store data in limited space
-
-    Having a set storing the keys seems counterproductive
-
-    
-    2) Store and update recently used
-    3) Be able to sift through items by hw recently they were used
-
-    Idea: keep doubley linked list of everything that gets used (just pointers on the DataObjects)
-    Update with each use (newly used at front, old at the back)
-    
-        Wouldn't need to keep the time of access, just the order
-        Need a wrapper class for the data that has prev and next pointers
-        
-        ** I like this idea **
-        
-        
-
-
-
-
-
-Email question:
-I've been keep away from HashMaps as a way to store the data because I do not have explicit control
-
-Hi!
-
-I was working on this problem today (I implemented parallelization), and have reached the point where I'd like to refine 
-the way in which I'm storing the data.
-
-I had planned to implement a custom, fixed-size of hash table; however, the only advantage that I can see in using my own
-over a hash map would be that when implementing my own I have explicit control over the size of the cache. 
-
-My question then, is do you think the trade off of greater code complexity for more control 
-
-"""
+        self.next = next_item        # object used immediately less recently than this object
+        self.prev = None        # object used immediately more recently than this object
 
 
 class NWaySetAssociativeCache(object):
@@ -162,37 +90,31 @@ class NWaySetAssociativeCache(object):
 
         # Setting the replacement algorithm (Either LRU, MRU, or user-defined)
         self._replacement_algorithm = None
-        if not self.set_replacement_algorithm(replacement_algorithm):
+        if not self._set_replacement_algorithm(replacement_algorithm):
             raise ValueError("Replacement algorithm parameter must designate LRU or MRU or be a function.")
 
         self._number_of_sets = n
         self._lines_per_set = lines
 
-
-
-        # TODO
+        # Data storage and retrieval
         self._keys = set()
-        self._set_fullness = [0] * n                                  # number of elements currently in each set
-        self._sets = [[None] * self._lines_per_set] * 2 * n           # the sets themselves, arrays with l lines, there are n of them
+        self._sets = [{} for i in range(n)]
+        self._data_head = [None] * n
+        self._data_tail = [None] * n
 
-        self._data_head = None
-        self._data_tail = None
-
-
-
-        self._condition = threading.Condition()
-        self._jobs_queue = ThreadNotifierFIFOList(self._condition)
+        # Jobs parallelization objects
+        self._new_job_condition = threading.Condition()
+        self._jobs_queue = ThreadNotifierFIFOList(self._new_job_condition)
         self._job_finished = threading.Barrier(self._number_of_sets)
         self._write_lock = threading.Lock()
-        self._read_event = threading.Event()
+        self._get_condition = threading.Condition()
 
-        self._temp_get_set_number = None
-        self._temp_get_line_number = None
+        self._get_data_set_index = None
 
         # Creating dedicated threads for reading/writing to each set
         self._create_threads()
 
-    def set_replacement_algorithm(self, replacement_algorithm):
+    def _set_replacement_algorithm(self, replacement_algorithm):
 
         # Checking for custom replacement algorithm
         if callable(replacement_algorithm):
@@ -218,31 +140,55 @@ class NWaySetAssociativeCache(object):
             worker_thread.daemon = True
             worker_thread.start()
 
-    def _worker(self, worker_thread_id):  # worker_thread_id corresponds with a set that this thread will always work on
+    def _update_ordering(self, current_item, worker_thread_id):
+        if current_item.prev:
+            current_item.prev.next = current_item.next
+
+        if current_item is self._data_tail[worker_thread_id]:
+            self._data_tail[worker_thread_id] = current_item.prev
+        else:
+            current_item.next.prev = current_item.prev
+
+    def _worker(self, worker_thread_id):
+
+        # worker_thread_id corresponds with a set that this thread will always work on
+        worker_set = self._sets[worker_thread_id]
         while True:
 
-            with self._condition:
+            # Waiting and acquiring new job when queue is not empty
+            with self._new_job_condition:
                 if self._jobs_queue.is_empty():
-                    self._condition.wait()
-
+                    self._new_job_condition.wait()
             current_job = self._jobs_queue.peek()
 
-            # If another thread completes the action first
             if current_job is not None:
 
                 # Inserting new data
                 if current_job.job_type is CacheAction.ADD:
 
-                    # TODO: find open position, may need to invoke replacemnt algorithm
+                    # Determine if/which resource needs to be removed
+                    remove_key = None
+                    if len(worker_set) == self._lines_per_set:
+                        remove_key = self._replacement_algorithm(worker_thread_id)
 
                     # Critical section, only allow changes to the cache if the job still exists
-                    # Job will be removed before the end of the thread safe critical section
+                    # Job will be removed from queue before the end of the thread safe critical section
                     self._write_lock.acquire()
 
                     if current_job is self._jobs_queue.peek():
-                        print(worker_thread_id, current_job)
 
-                        # TODO: update the associated fields, using the open position
+                        # If a removal is necessary to maintain cache size
+                        if remove_key:
+                            self._update_ordering(worker_set.pop(remove_key), worker_thread_id)
+                            self._keys.remove(remove_key)
+
+                        worker_set[current_job.job_data.key] = CacheData(current_job.job_data.key, current_job.job_data.data, self._data_head[worker_thread_id])
+                        self._data_head[worker_thread_id] = worker_set[current_job.job_data.key]
+
+                        self._keys.add(current_job.job_data.key)
+
+                        if self._data_tail[worker_thread_id] is None:
+                            self._data_tail[worker_thread_id] = worker_set[current_job.job_data.key]
 
                         # The job has been completed
                         self._jobs_queue.pop()
@@ -252,145 +198,84 @@ class NWaySetAssociativeCache(object):
                 # Accessing/updating existing data
                 else:
 
-                    # TODO: find position of current data, if the element is not here then break (cannot continue, need to meet at barrier)
+                    # Exactly one thread can act for a get/update job
+                    if current_job.job_data.key in worker_set:
 
-                    if current_job.job_type is CacheAction.GET:
-                        pass    # TODO: temporarily store the data in a shared class variable indicating the set and line number
-                        # TODO: set an Event to tell the main thread
-                        self._read_event.set()
+                        if current_job.job_type is CacheAction.GET:
 
-                    else:
+                            self._get_data_set_index = worker_thread_id
+                            with self._get_condition:
+                                self._get_condition.notify_all()
 
-                        # Critical section, only allow changes to the cache if the job still exists
-                        # Job will be removed before the end of the thread safe critical section
-                        self._write_lock.acquire()
+                        else:
 
-                        if current_job is self._jobs_queue.peek():
-                            # TODO: update the associated fields, using the found position
+                            current_item = worker_set[current_job.job_data.key]
 
-                            # The job has been completed
-                            self._jobs_queue.pop()
+                            if current_job is self._jobs_queue.peek():
 
-                        self._write_lock.release()
+                                current_item.data = current_job.job_data.data
+
+                                if current_item is not self._data_head[worker_thread_id]:
+
+                                    # Updating linked list for keeping track of recent access within the cache
+                                    self._update_ordering(current_item, worker_thread_id)
+                                    current_item.prev = None
+                                    current_item.next = self._data_head[worker_thread_id]
+                                    self._data_head[worker_thread_id] = current_item
+
+                        # The job has been completed
+                        self._jobs_queue.pop()
 
             # Barrier to ensure that all threads finish the loop at the same time
             # This prevents a single thread from taking all of the jobs
             self._job_finished.wait()
 
-    def _lru(self, current_set):
+    def _lru(self, current_set_id):
         """
-        :param current_set: a full set
+        :param current_set: the ID of the set being accessed
         :return: the index of the least recently used element within this set
         """
-        # TODO, implement LRU algorithm
-        pass
+        return self._data_tail[current_set_id].key
 
-    def _mru(self, current_set):
+    def _mru(self, current_set_id):
         """
-        :param current_set: a full set
+        :param current_set: the ID of the set being accessed
         :return: the index of the most recently used element within this set
         """
-        # TODO, implement MRU algorithm
-        pass
+        return self._data_head[current_set_id].key
 
     def put(self, key, value):
-        if key not in self._data_information:
-            self._jobs_queue.append(WorkerJob(CacheAction.ADD, (key, value)))
+        if key not in self._keys:
+            self._jobs_queue.append(WorkerJob(CacheAction.ADD, JobData(key, value)))
         else:
-            self._jobs_queue.append(WorkerJob(CacheAction.UPDATE, (key, value)))
+            self._jobs_queue.append(WorkerJob(CacheAction.UPDATE, JobData(key, value)))
 
     def get(self, key):
-        self._jobs_queue.append(WorkerJob(CacheAction.GET, key))
-        with self._read_event:
-            self._read_event.wait()
-            self._read_event.clear()
+        if key not in self._keys:
+            raise ValueError("Specified key is not present in cache.")
 
-        # TODO: using the temporary variables return the required data
+        self._jobs_queue.append(WorkerJob(CacheAction.GET, JobData(key)))
 
+        with self._get_condition:
+            self._get_condition.wait()
+
+        return self._sets[self._get_data_set_index][key].data
 
 if __name__ == '__main__':
     test_cache = NWaySetAssociativeCache()
-    test_cache.put(1, 1)
-    test_cache.put(2, 2)
-    test_cache.put(3, 3)
-    time.sleep(2)
+    test_cache.put(1, 10)
+    test_cache.put(2, 20)
+
+    time.sleep(0.0001)
+
+    print(test_cache.get(1))
+    print(test_cache.get(2))
 
 
 
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-### HARD TIME
-
-
-#
-# if current_job.job_type is CacheAction.ADD:
-#     print("ADD")
-#
-#     # find position
-#     # possibly involve the replacement algorithm
-#
-#     self._read_write_lock.acquire()
-#
-#     if current_job is self._jobs_queue.peek():
-#         # update required fields
-#
-#         self._jobs_queue.pop()
-#
-#     self._read_write_lock.release()
-#
-#     # release lock
-#
-# elif current_job.job_type is CacheAction.UPDATE:
-#
-#     # search expected position
-#
-#
-#     self._read_write_lock.acquire()
-#
-#     if current_job is self._jobs_queue.peek():
-#         # update required fields
-#
-#         self._jobs_queue.pop()
-#
-#     self._read_write_lock.release()
-#
-#     # if we find the correct value
-#
-#     # updated required fields
-#
-#     # pop the job
-#
-# else:  # CacheAction.GET
-#     pass
 
 
 
