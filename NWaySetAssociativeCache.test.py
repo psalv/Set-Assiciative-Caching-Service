@@ -38,7 +38,28 @@ class PutTestCase(unittest.TestCase):
             self.assertEqual(instances, 1)
 
     def test_put_items_of_mixed_types(self):
-        pass
+        class NewObject(object):
+            def __init__(self):
+                pass
+        new_object1 = NewObject()
+        new_object2 = NewObject()
+
+        keys = [1, 2, 2.03, 'fizz', new_object1, new_object2]
+        data = [10, 'foo', 'bar', 20, new_object2, 'buzz']
+
+        for i in range(len(keys)):
+            self.cache.put(keys[i], data[i])
+
+        time.sleep(0.1)
+
+        for i in range(len(keys)):
+            instances = 0
+            for current_set in self.cache._sets:
+                if keys[i] in current_set:
+                    self.assertEqual(current_set[keys[i]].data, data[i])
+                    instances += 1
+
+            self.assertEqual(instances, 1)
 
 
 class GetTestCase(unittest.TestCase):
@@ -50,13 +71,13 @@ class GetTestCase(unittest.TestCase):
 
     def test_get_single_item(self):
         self.cache.put(1, 10)
-        time.sleep(0.1)
+        time.sleep(0.001)
         self.assertEqual(self.cache.get(1), 10)
 
     def test_get_multiple_items(self):
         for i in range(1, 9):
             self.cache.put(i, 10 * i)
-        time.sleep(0.1)
+        time.sleep(0.001)
         for i in range(1, 9):
             self.assertEqual(self.cache.get(i), 10 * i)
 
@@ -77,7 +98,7 @@ class GetTestCase(unittest.TestCase):
         self.cache.put(new_object1, new_object2)
         self.cache.put(new_object2, 'buzz')
 
-        time.sleep(0.1)
+        time.sleep(0.001)
 
         self.assertEqual(self.cache.get(1), 10)
         self.assertEqual(self.cache.get(2), 'foo')
