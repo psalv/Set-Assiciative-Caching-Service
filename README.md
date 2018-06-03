@@ -1,7 +1,8 @@
 # N-Way Set Associative Cache
 
 This cache uses n daemon worker threads to distribute the workload
-of each job it is given.
+of each job it is given and store up to n * lines items within a set
+associative cache.
 
 ## Using the cache:
 
@@ -19,7 +20,7 @@ cache = NWaySetAssociativeCache(n, replacement, lines)
 
 n = the number of sets (and the number of worker threads)
 
-replacement = 'LRU', 'MRU', or a custom static replacement algorithm
+replacement = 'LRU', 'MRU', or a custom static replacement algorithm. The custom replacement algorithm will take in the cache class instance, as well as the set number to do the replacement on as parameters.
 
 lines = the number of lines within a single set
 
