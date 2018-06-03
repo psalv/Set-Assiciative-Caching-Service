@@ -315,37 +315,27 @@ class ReplacementAlgorithmTestCase(unittest.TestCase):
 
     def test_custom_algorithm(self):
 
-        alternating = 0
+        def mru_custom_algorithm(class_instance, current_set_id):
+            return NWaySetAssociativeCache.mru(class_instance, current_set_id)
 
-        class CustomReplacementCache(NWaySetAssociativeCache):
-
-            def _lru_or_mru_alternating_algorithm(self, current_set_id):
-                global alternating
-                alternating = (alternating + 1) % 2
-
-                if alternating % 2 == 0:
-                    return self._lru(current_set_id)
-                else:
-                    return self._mru(current_set_id)
-
-        cache = CustomReplacementCache(1, CustomReplacementCache._lru_or_mru_alternating_algorithm, 2)
+        cache = NWaySetAssociativeCache(1, mru_custom_algorithm, 2)
         cache.put(1, 10)
         cache.put(2, 20)
         cache.put(3, 20)
-        #
-        # while not cache._jobs_queue.is_empty():
-        #     time.sleep(time_spacer)
-        #
-        # with self.assertRaises(ValueError):
-        #     cache.get(2)
-        #
-        # cache.put(4, 40)
-        #
-        # while not cache._jobs_queue.is_empty():
-        #     time.sleep(time_spacer)
-        #
-        # with self.assertRaises(ValueError):
-        #     cache.get(1)
+
+        while not cache._jobs_queue.is_empty():
+            time.sleep(time_spacer)
+
+        with self.assertRaises(ValueError):
+            cache.get(2)
+
+        cache.put(4, 40)
+
+        while not cache._jobs_queue.is_empty():
+            time.sleep(time_spacer)
+
+        with self.assertRaises(ValueError):
+            cache.get(3)
 
 
 class CacheSizeTestCase(unittest.TestCase):

@@ -103,8 +103,8 @@ class NWaySetAssociativeCache(object):
         # Data storage and retrieval
         self._keys = set()
         self._sets = [{} for i in range(n)]
-        self._data_head = [None] * n
-        self._data_tail = [None] * n
+        self.data_head = [None] * n
+        self.data_tail = [None] * n
 
         # Jobs parallelization objects
         self._new_job_condition = threading.Condition()
@@ -129,10 +129,10 @@ class NWaySetAssociativeCache(object):
         elif isinstance(replacement_algorithm, str):
             replacement_algorithm = replacement_algorithm.upper()
             if replacement_algorithm == "LRU":
-                self._replacement_algorithm = self._lru
+                self._replacement_algorithm = self.lru
                 return True
             elif replacement_algorithm == "MRU":
-                self._replacement_algorithm = self._mru
+                self._replacement_algorithm = self.mru
                 return True
 
         # If we reach the end then no valid replacement algorithm was given
@@ -148,8 +148,8 @@ class NWaySetAssociativeCache(object):
         if current_item.prev:
             current_item.prev.next = current_item.next
 
-        if current_item is self._data_tail[worker_thread_id]:
-            self._data_tail[worker_thread_id] = current_item.prev
+        if current_item is self.data_tail[worker_thread_id]:
+            self.data_tail[worker_thread_id] = current_item.prev
         else:
             current_item.next.prev = current_item.prev
 
@@ -173,7 +173,7 @@ class NWaySetAssociativeCache(object):
                     # Determine if/which resource needs to be removed
                     remove_key = None
                     if len(worker_set) == self._lines_per_set:
-                        remove_key = self._replacement_algorithm(worker_thread_id)
+                        remove_key = self._replacement_algorithm(self, worker_thread_id)
 
                     # Critical section, only allow changes to the cache if the job still exists
                     # Job will be removed from queue before the end of the thread safe critical section
@@ -186,17 +186,17 @@ class NWaySetAssociativeCache(object):
                             self._update_ordering(worker_set.pop(remove_key), worker_thread_id)
                             self._keys.remove(remove_key)
 
-                        worker_set[current_job.job_data.key] = CacheData(current_job.job_data.key, current_job.job_data.data, self._data_head[worker_thread_id])
+                        worker_set[current_job.job_data.key] = CacheData(current_job.job_data.key, current_job.job_data.data, self.data_head[worker_thread_id])
 
-                        if self._data_head[worker_thread_id]:
-                            self._data_head[worker_thread_id].prev = worker_set[current_job.job_data.key]
+                        if self.data_head[worker_thread_id]:
+                            self.data_head[worker_thread_id].prev = worker_set[current_job.job_data.key]
 
-                        self._data_head[worker_thread_id] = worker_set[current_job.job_data.key]
+                        self.data_head[worker_thread_id] = worker_set[current_job.job_data.key]
 
                         self._keys.add(current_job.job_data.key)
 
-                        if self._data_tail[worker_thread_id] is None:
-                            self._data_tail[worker_thread_id] = worker_set[current_job.job_data.key]
+                        if self.data_tail[worker_thread_id] is None:
+                            self.data_tail[worker_thread_id] = worker_set[current_job.job_data.key]
 
                         # The job has been completed
                         self._jobs_queue.pop()
@@ -223,17 +223,17 @@ class NWaySetAssociativeCache(object):
 
                                 current_item.data = current_job.job_data.data
 
-                                if current_item is not self._data_head[worker_thread_id]:
+                                if current_item is not self.data_head[worker_thread_id]:
 
                                     # Updating linked list for keeping track of recent access within the cache
                                     self._update_ordering(current_item, worker_thread_id)
                                     current_item.prev = None
-                                    current_item.next = self._data_head[worker_thread_id]
+                                    current_item.next = self.data_head[worker_thread_id]
 
-                                    if self._data_head[worker_thread_id]:
-                                        self._data_head[worker_thread_id].prev = worker_set[current_job.job_data.key]
+                                    if self.data_head[worker_thread_id]:
+                                        self.data_head[worker_thread_id].prev = worker_set[current_job.job_data.key]
 
-                                    self._data_head[worker_thread_id] = current_item
+                                    self.data_head[worker_thread_id] = current_item
 
                         # The job has been completed
                         self._jobs_queue.pop()
@@ -242,19 +242,21 @@ class NWaySetAssociativeCache(object):
             # This prevents a single thread from taking all of the jobs
             self._job_finished.wait()
 
-    def _lru(self, current_set_id):
+    @staticmethod
+    def lru(class_instance, current_set_id):
         """
         :param current_set_id: the ID of the set being accessed
         :return: the key of the least recently used element within this set
         """
-        return self._data_tail[current_set_id].key
+        return class_instance.data_tail[current_set_id].key
 
-    def _mru(self, current_set_id):
+    @staticmethod
+    def mru(class_instance, current_set_id):
         """
         :param current_set_id: the ID of the set being accessed
         :return: the key of the most recently used element within this set
         """
-        return self._data_head[current_set_id].key
+        return class_instance.data_head[current_set_id].key
 
     def put(self, key, value):
         self._jobs_queue.append(WorkerJob(CacheAction.PUT, JobData(key, value)))
