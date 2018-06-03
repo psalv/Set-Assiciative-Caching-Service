@@ -8,7 +8,11 @@ class CacheAction(Enum):
     GET = 1
 
 
-class ThreadNotifierFIFOList(object):
+class ThreadNotifierFIFOQueue(object):
+    """
+    A FIFO Queue that notifies the given condition when it is added to.
+    This will awaken the waiting threads such that they may process incoming jobs.
+    """
 
     class ListNode(object):
 
@@ -35,10 +39,10 @@ class ThreadNotifierFIFOList(object):
             self._condition.notify_all()         # all of the threads will awaken
 
         if self._head is None:
-            self._head = ThreadNotifierFIFOList.ListNode(item)
+            self._head = ThreadNotifierFIFOQueue.ListNode(item)
             self._tail = self._head
         else:
-            self._tail.next = ThreadNotifierFIFOList.ListNode(item)
+            self._tail.next = ThreadNotifierFIFOQueue.ListNode(item)
             self._tail = self._tail.next
 
     def peek(self):
@@ -57,6 +61,9 @@ class ThreadNotifierFIFOList(object):
 
 
 class JobData(object):
+    """
+    The information passed to the GET or PUT requests.
+    """
 
     def __init__(self, key, data=None):
         self.key = key
@@ -67,6 +74,9 @@ class JobData(object):
 
 
 class WorkerJob(object):
+    """
+    Jobs that are processed by the n worker threads created by the cache.
+    """
 
     def __init__(self, job_type, job_data):
         self.job_type = job_type
@@ -118,7 +128,7 @@ class NWaySetAssociativeCache(object):
 
         # Jobs parallelization objects
         self._new_job_condition = threading.Condition()
-        self._jobs_queue = ThreadNotifierFIFOList(self._new_job_condition)
+        self._jobs_queue = ThreadNotifierFIFOQueue(self._new_job_condition)
         self._job_finished = threading.Barrier(self._number_of_sets)
         self._write_lock = threading.Lock()
         self._get_condition = threading.Condition()

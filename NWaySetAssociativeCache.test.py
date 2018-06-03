@@ -337,8 +337,6 @@ class ReplacementAlgorithmTestCase(unittest.TestCase):
         with self.assertRaises(ValueError):
             cache.get(3)
 
-    # TODO !!!!!
-
     def test_lru_get_updates_ordering(self):
         cache = NWaySetAssociativeCache(1, 'LRU', 2)
         cache.put(1, 10)
