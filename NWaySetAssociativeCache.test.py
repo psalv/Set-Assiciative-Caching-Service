@@ -13,14 +13,17 @@ class NewObject(object):
 class PutTestCase(unittest.TestCase):
 
     def setUp(self):
-        self.cache = NWaySetAssociativeCache()
+        self.cache = NWaySetAssociativeCache(n)
 
     def tearDown(self):
         del self.cache
 
     def test_put_single_item(self):
         self.cache.put(1, 10)
-        time.sleep(0.1)
+
+        while not self.cache._jobs_queue.is_empty():
+            time.sleep(time_spacer)
+
         instances = 0
         for current_set in self.cache._sets:
             if 1 in current_set:
@@ -32,7 +35,9 @@ class PutTestCase(unittest.TestCase):
     def test_put_multiple_items(self):
         for i in range(1, 9):
             self.cache.put(i, 10 * i)
-        time.sleep(0.001)
+
+        while not self.cache._jobs_queue.is_empty():
+            time.sleep(time_spacer)
 
         for i in range(1, 9):
             instances = 0
@@ -53,7 +58,8 @@ class PutTestCase(unittest.TestCase):
         for i in range(len(keys)):
             self.cache.put(keys[i], data[i])
 
-        time.sleep(0.001)
+        while not self.cache._jobs_queue.is_empty():
+            time.sleep(time_spacer)
 
         for i in range(len(keys)):
             instances = 0
@@ -67,20 +73,26 @@ class PutTestCase(unittest.TestCase):
 
 class GetTestCase(unittest.TestCase):
     def setUp(self):
-        self.cache = NWaySetAssociativeCache()
+        self.cache = NWaySetAssociativeCache(n)
 
     def tearDown(self):
         del self.cache
 
     def test_get_single_item(self):
         self.cache.put(1, 10)
-        time.sleep(0.001)
+
+        while not self.cache._jobs_queue.is_empty():
+            time.sleep(time_spacer)
+
         self.assertEqual(self.cache.get(1), 10)
 
     def test_get_multiple_items(self):
         for i in range(1, 9):
             self.cache.put(i, 10 * i)
-        time.sleep(0.001)
+
+        while not self.cache._jobs_queue.is_empty():
+            time.sleep(time_spacer)
+
         for i in range(1, 9):
             self.assertEqual(self.cache.get(i), 10 * i)
 
@@ -96,7 +108,8 @@ class GetTestCase(unittest.TestCase):
         self.cache.put(new_object1, new_object2)
         self.cache.put(new_object2, 'buzz')
 
-        time.sleep(0.001)
+        while not self.cache._jobs_queue.is_empty():
+            time.sleep(time_spacer)
 
         self.assertEqual(self.cache.get(1), 10)
         self.assertEqual(self.cache.get(2), 'foo')
@@ -109,7 +122,7 @@ class GetTestCase(unittest.TestCase):
 class UpdateTestCase(unittest.TestCase):
 
     def setUp(self):
-        self.cache = NWaySetAssociativeCache()
+        self.cache = NWaySetAssociativeCache(n)
 
     def tearDown(self):
         del self.cache
@@ -117,7 +130,10 @@ class UpdateTestCase(unittest.TestCase):
     def test_update_item(self):
         self.cache.put(1, 10)
         self.cache.put(1, 20)
-        time.sleep(0.001)
+
+        while not self.cache._jobs_queue.is_empty():
+            time.sleep(time_spacer)
+
         instances = 0
         for current_set in self.cache._sets:
             if 1 in current_set:
@@ -133,7 +149,8 @@ class UpdateTestCase(unittest.TestCase):
         for i in range(1, 9):
             self.cache.put(i, 10 * i + 5)
 
-        time.sleep(0.01)
+        while not self.cache._jobs_queue.is_empty():
+            time.sleep(time_spacer)
 
         for i in range(1, 9):
             instances = 0
@@ -149,7 +166,8 @@ class UpdateTestCase(unittest.TestCase):
         self.cache.put(newobject, 1)
         self.cache.put(newobject, 2)
 
-        time.sleep(0.001)
+        while not self.cache._jobs_queue.is_empty():
+            time.sleep(time_spacer)
 
         instances = 0
         for current_set in self.cache._sets:
@@ -163,7 +181,8 @@ class UpdateTestCase(unittest.TestCase):
         self.cache.put(1, 10)
         self.cache.put(1, 'foo')
 
-        time.sleep(0.001)
+        while not self.cache._jobs_queue.is_empty():
+            time.sleep(time_spacer)
 
         instances = 0
         for current_set in self.cache._sets:
@@ -175,7 +194,8 @@ class UpdateTestCase(unittest.TestCase):
         newobject = NewObject()
         self.cache.put(1, newobject)
 
-        time.sleep(0.001)
+        while not self.cache._jobs_queue.is_empty():
+            time.sleep(time_spacer)
 
         instances = 0
         for current_set in self.cache._sets:
@@ -187,7 +207,10 @@ class UpdateTestCase(unittest.TestCase):
     def test_get_updated_item(self):
         self.cache.put(1, 10)
         self.cache.put(1, 20)
-        time.sleep(0.01)
+
+        while not self.cache._jobs_queue.is_empty():
+            time.sleep(time_spacer)
+
         self.assertEqual(self.cache.get(1), 20)
 
 
@@ -222,7 +245,8 @@ class ReplacementAlgorithmTestCase(unittest.TestCase):
         cache.put(1, 10)
         cache.put(2, 20)
 
-        time.sleep(0.001)
+        while not cache._jobs_queue.is_empty():
+            time.sleep(time_spacer)
 
         self.assertEqual(len(cache._sets[0]), 1)
         self.assertEqual(cache._sets[0][2].data, 20)
@@ -232,7 +256,8 @@ class ReplacementAlgorithmTestCase(unittest.TestCase):
         for i in range(1, 6):
             cache.put(i, 10 * i)
 
-        time.sleep(0.001)
+        while not cache._jobs_queue.is_empty():
+            time.sleep(time_spacer)
 
         self.assertEqual(len(cache._sets[0]), 4)
 
@@ -247,7 +272,8 @@ class ReplacementAlgorithmTestCase(unittest.TestCase):
         for i in range(1, 9):
             cache.put(i, 10 * i)
 
-        time.sleep(0.001)
+        while not cache._jobs_queue.is_empty():
+            time.sleep(time_spacer)
 
         self.assertEqual(len(cache._sets[0]), 4)
 
@@ -264,7 +290,8 @@ class ReplacementAlgorithmTestCase(unittest.TestCase):
         cache.put(2, 20)
         cache.put(3, 30)
 
-        time.sleep(0.001)
+        while not cache._jobs_queue.is_empty():
+            time.sleep(time_spacer)
 
         self.assertEqual(len(cache._sets[0]), 2)
         self.assertEqual(cache._sets[0][1].data, 10)
@@ -275,7 +302,8 @@ class ReplacementAlgorithmTestCase(unittest.TestCase):
         for i in range(1, 9):
             cache.put(i, 10 * i)
 
-        time.sleep(0.001)
+        while not cache._jobs_queue.is_empty():
+            time.sleep(time_spacer)
 
         self.assertEqual(len(cache._sets[0]), 4)
         for i in range(4, 8):
@@ -287,28 +315,115 @@ class ReplacementAlgorithmTestCase(unittest.TestCase):
 
     def test_custom_algorithm(self):
 
-        # TODO: extend the class
+        alternating = 0
 
-        pass
+        class CustomReplacementCache(NWaySetAssociativeCache):
+
+            def _lru_or_mru_alternating_algorithm(self, current_set_id):
+                global alternating
+                alternating = (alternating + 1) % 2
+
+                if alternating % 2 == 0:
+                    return self._lru(current_set_id)
+                else:
+                    return self._mru(current_set_id)
+
+        cache = CustomReplacementCache(1, CustomReplacementCache._lru_or_mru_alternating_algorithm, 2)
+        cache.put(1, 10)
+        cache.put(2, 20)
+        cache.put(3, 20)
+        #
+        # while not cache._jobs_queue.is_empty():
+        #     time.sleep(time_spacer)
+        #
+        # with self.assertRaises(ValueError):
+        #     cache.get(2)
+        #
+        # cache.put(4, 40)
+        #
+        # while not cache._jobs_queue.is_empty():
+        #     time.sleep(time_spacer)
+        #
+        # with self.assertRaises(ValueError):
+        #     cache.get(1)
 
 
 class CacheSizeTestCase(unittest.TestCase):
 
-    def test_single_set(self):
-        pass
-
-    def test_multiple_sets(self):
-        pass
-
     def test_single_line(self):
-        pass
+        cache = NWaySetAssociativeCache(n, "LRU", 1)
+
+        cache.put(1, 10)
+
+        while not cache._jobs_queue.is_empty():
+            time.sleep(time_spacer)
+
+        self.assertEqual(cache.get(1), 10)
+
+        cache.put(2, 20)
+
+        time.sleep(time_spacer)
+        while not cache._jobs_queue.is_empty():
+            time.sleep(time_spacer)
+
+        self.assertEqual(cache.get(2), 20)
+
+        cache.put('foo', 'bar')
+
+        while not cache._jobs_queue.is_empty():
+            time.sleep(time_spacer)
+
+        self.assertEqual(cache.get('foo'), 'bar')
 
     def test_multiple_lines(self):
-        pass
+        cache = NWaySetAssociativeCache(n, "LRU", 128)
 
-    def test_very_large_cache(self):
-        pass
+        cache.put(1, 10)
+
+        while not cache._jobs_queue.is_empty():
+            time.sleep(time_spacer)
+
+        self.assertEqual(cache.get(1), 10)
+
+        cache.put(2, 20)
+
+        time.sleep(time_spacer)
+        while not cache._jobs_queue.is_empty():
+            time.sleep(time_spacer)
+
+        self.assertEqual(cache.get(2), 20)
+
+        cache.put('foo', 'bar')
+
+        while not cache._jobs_queue.is_empty():
+            time.sleep(time_spacer)
+
+        self.assertEqual(cache.get('foo'), 'bar')
+
+    def test_large_input(self):
+        cache = NWaySetAssociativeCache(1, "LRU", 128)
+
+        for i in range(1, 10000):
+            cache.put(i, i)
+
+        while not cache._jobs_queue.is_empty():
+            time.sleep(time_spacer)
+
+        for i in range(1, 10000 - 128):
+            with self.assertRaises(ValueError):
+                cache.get(i)
+
+        for i in range(10000 - 128 + 1, 10000):
+            self.assertEqual(cache.get(i), i)
 
 
 if __name__ == '__main__':
-    unittest.main()
+    time_spacer = 0.001
+
+    n = 1
+    unittest.main(exit=False)
+    n = 4
+    unittest.main(exit=False)
+    n = 32
+    unittest.main(exit=False)
+
