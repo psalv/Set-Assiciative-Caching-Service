@@ -82,7 +82,7 @@ class CacheData(object):
         self.key = key
         self.data = data
         self.next = next_item        # object used immediately less recently than this object
-        self.prev = None        # object used immediately more recently than this object
+        self.prev = None             # object used immediately more recently than this object
 
     def __repr__(self):
         return str(self.key) + " - " + str(self.data)
@@ -244,18 +244,10 @@ class NWaySetAssociativeCache(object):
 
     @staticmethod
     def lru(class_instance, current_set_id):
-        """
-        :param current_set_id: the ID of the set being accessed
-        :return: the key of the least recently used element within this set
-        """
         return class_instance.data_tail[current_set_id].key
 
     @staticmethod
     def mru(class_instance, current_set_id):
-        """
-        :param current_set_id: the ID of the set being accessed
-        :return: the key of the most recently used element within this set
-        """
         return class_instance.data_head[current_set_id].key
 
     def put(self, key, value):
