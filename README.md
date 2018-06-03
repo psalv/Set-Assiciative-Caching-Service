@@ -4,18 +4,24 @@ This cache uses n daemon worker threads to distribute the workload
 of each job it is given and store up to n * lines items within a set
 associative cache.
 
+## Installation
+
+```
+pip3 install n_way_set_associative_cache
+```
+
 ## Using the cache:
 
 1) Import the package
 
 ```
-from n_way_set_associative_cache.NWaySetAssociativeCache import NWaySetAssociativeCache
+from n_way_set_associative_cache import NWaySetAssociativeCache as nwsac
 ```
 
 2) Create a new cache object
 
 ```
-cache = NWaySetAssociativeCache(n, replacement, lines)
+cache = nwsac.NWaySetAssociativeCache(n, replacement, lines)
 ```
 
 n = the number of sets (and the number of worker threads)
