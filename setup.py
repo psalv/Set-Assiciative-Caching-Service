@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="n_way_set_associative_cache",
-    version="0.0.1",
+    version="0.0.2",
     author="Paul Salvatore",
     author_email="paulanthonysalvatore@gmail.com",
     description="An N-way set associative cache",
