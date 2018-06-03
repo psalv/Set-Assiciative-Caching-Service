@@ -1,7 +1,13 @@
 
-import unittest
 import time
+import unittest
+
 from NWaySetAssociativeCache import NWaySetAssociativeCache
+
+
+class NewObject(object):
+    def __init__(self):
+        pass
 
 
 class PutTestCase(unittest.TestCase):
@@ -26,7 +32,7 @@ class PutTestCase(unittest.TestCase):
     def test_put_multiple_items(self):
         for i in range(1, 9):
             self.cache.put(i, 10 * i)
-        time.sleep(0.1)
+        time.sleep(0.001)
 
         for i in range(1, 9):
             instances = 0
@@ -38,9 +44,6 @@ class PutTestCase(unittest.TestCase):
             self.assertEqual(instances, 1)
 
     def test_put_items_of_mixed_types(self):
-        class NewObject(object):
-            def __init__(self):
-                pass
         new_object1 = NewObject()
         new_object2 = NewObject()
 
@@ -50,7 +53,7 @@ class PutTestCase(unittest.TestCase):
         for i in range(len(keys)):
             self.cache.put(keys[i], data[i])
 
-        time.sleep(0.1)
+        time.sleep(0.001)
 
         for i in range(len(keys)):
             instances = 0
@@ -82,11 +85,6 @@ class GetTestCase(unittest.TestCase):
             self.assertEqual(self.cache.get(i), 10 * i)
 
     def test_get_items_of_mixed_types(self):
-
-        class NewObject(object):
-            def __init__(self):
-                pass
-
         self.cache.put(1, 10)
         self.cache.put(2, 'foo')
         self.cache.put(2.03, 'bar')
@@ -117,18 +115,79 @@ class UpdateTestCase(unittest.TestCase):
         del self.cache
 
     def test_update_item(self):
-        pass
+        self.cache.put(1, 10)
+        self.cache.put(1, 20)
+        time.sleep(0.001)
+        instances = 0
+        for current_set in self.cache._sets:
+            if 1 in current_set:
+                self.assertEqual(current_set[1].data, 20)
+                instances += 1
+
+        self.assertEqual(instances, 1)
 
     def test_update_multiple_items(self):
-        pass
+        for i in range(1, 9):
+            self.cache.put(i, 10 * i)
 
-    def test_update_item_mixed_type(self):
-        pass
+        for i in range(1, 9):
+            self.cache.put(i, 10 * i + 5)
+
+        time.sleep(0.01)
+
+        for i in range(1, 9):
+            instances = 0
+            for current_set in self.cache._sets:
+                if i in current_set:
+                    self.assertEqual(current_set[i].data, 10 * i + 5)
+                    instances += 1
+
+            self.assertEqual(instances, 1)
+
+    def test_update_mixed_types(self):
+        newobject = NewObject()
+        self.cache.put(newobject, 1)
+        self.cache.put(newobject, 2)
+
+        time.sleep(0.001)
+
+        instances = 0
+        for current_set in self.cache._sets:
+            if newobject in current_set:
+                self.assertEqual(current_set[newobject].data, 2)
+                instances += 1
+        self.assertEqual(instances, 1)
+
+    def test_update_item_mixed_type_update(self):
+
+        self.cache.put(1, 10)
+        self.cache.put(1, 'foo')
+
+        time.sleep(0.001)
+
+        instances = 0
+        for current_set in self.cache._sets:
+            if 1 in current_set:
+                self.assertEqual(current_set[1].data, 'foo')
+                instances += 1
+        self.assertEqual(instances, 1)
+
+        newobject = NewObject()
+        self.cache.put(1, newobject)
+
+        time.sleep(0.001)
+
+        instances = 0
+        for current_set in self.cache._sets:
+            if 1 in current_set:
+                self.assertEqual(current_set[1].data, newobject)
+                instances += 1
+        self.assertEqual(instances, 1)
 
     def test_get_updated_item(self):
         self.cache.put(1, 10)
         self.cache.put(1, 20)
-        time.sleep(0.001)
+        time.sleep(0.01)
         self.assertEqual(self.cache.get(1), 20)
 
 
@@ -137,10 +196,17 @@ class InvalidInputTestCase(unittest.TestCase):
     def test_get_with_nonexistant_key(self):
         cache = NWaySetAssociativeCache()
 
+        with self.assertRaises(ValueError):
+            cache.get(1)
+
         del cache
 
     def test_initialization_with_invalid_replacement_algorithm(self):
-        pass
+        with self.assertRaises(ValueError):
+            cache = NWaySetAssociativeCache(4, "LRV", 32)
+
+        with self.assertRaises(ValueError):
+            cache = NWaySetAssociativeCache(4, NewObject(), 32)
 
 
 class ReplacementAlgorithmTestCase(unittest.TestCase):
@@ -183,6 +249,7 @@ class CacheSizeTestCase(unittest.TestCase):
 
     def test_very_large_cache(self):
         pass
+
 
 if __name__ == '__main__':
     unittest.main()

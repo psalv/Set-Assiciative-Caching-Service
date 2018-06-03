@@ -4,9 +4,8 @@ from enum import Enum
 
 
 class CacheAction(Enum):
-    ADD = 0
-    UPDATE = 1
-    GET = 2
+    PUT = 0
+    GET = 1
 
 
 class ThreadNotifierFIFOList(object):
@@ -162,8 +161,9 @@ class NWaySetAssociativeCache(object):
 
             if current_job is not None:
 
+
                 # Inserting new data
-                if current_job.job_type is CacheAction.ADD:
+                if current_job.job_data.key not in self._keys:
 
                     # Determine if/which resource needs to be removed
                     remove_key = None
@@ -200,7 +200,7 @@ class NWaySetAssociativeCache(object):
                     # Exactly one thread can act for a get/update job
                     if current_job.job_data.key in worker_set:
 
-                        if current_job.job_type is CacheAction.GET:
+                        if current_job.job_type == CacheAction.GET:
 
                             self._get_data_set_index = worker_thread_id
                             with self._get_condition:
@@ -244,10 +244,7 @@ class NWaySetAssociativeCache(object):
         return self._data_head[current_set_id].key
 
     def put(self, key, value):
-        if key not in self._keys:
-            self._jobs_queue.append(WorkerJob(CacheAction.ADD, JobData(key, value)))
-        else:
-            self._jobs_queue.append(WorkerJob(CacheAction.UPDATE, JobData(key, value)))
+        self._jobs_queue.append(WorkerJob(CacheAction.PUT, JobData(key, value)))
 
     def get(self, key):
         if key not in self._keys:
