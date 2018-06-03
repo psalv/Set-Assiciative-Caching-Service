@@ -62,6 +62,9 @@ class JobData(object):
         self.key = key
         self.data = data
 
+    def __repr__(self):
+        return str(self.key) + " - " + str(self.data)
+
 
 class WorkerJob(object):
 
@@ -80,6 +83,9 @@ class CacheData(object):
         self.data = data
         self.next = next_item        # object used immediately less recently than this object
         self.prev = None        # object used immediately more recently than this object
+
+    def __repr__(self):
+        return str(self.key) + " - " + str(self.data)
 
 
 class NWaySetAssociativeCache(object):
@@ -120,7 +126,7 @@ class NWaySetAssociativeCache(object):
             return True
 
         # Checking for one of the preset replacement algorithms
-        elif replacement_algorithm.isalpha():
+        elif isinstance(replacement_algorithm, str):
             replacement_algorithm = replacement_algorithm.upper()
             if replacement_algorithm == "LRU":
                 self._replacement_algorithm = self._lru
@@ -161,7 +167,6 @@ class NWaySetAssociativeCache(object):
 
             if current_job is not None:
 
-
                 # Inserting new data
                 if current_job.job_data.key not in self._keys:
 
@@ -182,6 +187,10 @@ class NWaySetAssociativeCache(object):
                             self._keys.remove(remove_key)
 
                         worker_set[current_job.job_data.key] = CacheData(current_job.job_data.key, current_job.job_data.data, self._data_head[worker_thread_id])
+
+                        if self._data_head[worker_thread_id]:
+                            self._data_head[worker_thread_id].prev = worker_set[current_job.job_data.key]
+
                         self._data_head[worker_thread_id] = worker_set[current_job.job_data.key]
 
                         self._keys.add(current_job.job_data.key)
@@ -220,6 +229,10 @@ class NWaySetAssociativeCache(object):
                                     self._update_ordering(current_item, worker_thread_id)
                                     current_item.prev = None
                                     current_item.next = self._data_head[worker_thread_id]
+
+                                    if self._data_head[worker_thread_id]:
+                                        self._data_head[worker_thread_id].prev = worker_set[current_job.job_data.key]
+
                                     self._data_head[worker_thread_id] = current_item
 
                         # The job has been completed

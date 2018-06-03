@@ -199,8 +199,6 @@ class InvalidInputTestCase(unittest.TestCase):
         with self.assertRaises(ValueError):
             cache.get(1)
 
-        del cache
-
     def test_initialization_with_invalid_replacement_algorithm(self):
         with self.assertRaises(ValueError):
             cache = NWaySetAssociativeCache(4, "LRV", 32)
@@ -208,28 +206,89 @@ class InvalidInputTestCase(unittest.TestCase):
         with self.assertRaises(ValueError):
             cache = NWaySetAssociativeCache(4, NewObject(), 32)
 
+        with self.assertRaises(ValueError):
+            cache = NWaySetAssociativeCache(4, 3, 32)
+
+        def mock():
+            pass
+
+        cache = NWaySetAssociativeCache(4, mock, 32)
+
 
 class ReplacementAlgorithmTestCase(unittest.TestCase):
 
-    def setUp(self):
-        self.cache = NWaySetAssociativeCache()
+    def test_replacement_in_memory(self):
+        cache = NWaySetAssociativeCache(1, 'LRU', 1)
+        cache.put(1, 10)
+        cache.put(2, 20)
 
-    def tearDown(self):
-        del self.cache
+        time.sleep(0.001)
+
+        self.assertEqual(len(cache._sets[0]), 1)
+        self.assertEqual(cache._sets[0][2].data, 20)
 
     def test_lru_algorithm_once(self):
-        pass
+        cache = NWaySetAssociativeCache(1, 'LRU', 4)
+        for i in range(1, 6):
+            cache.put(i, 10 * i)
+
+        time.sleep(0.001)
+
+        self.assertEqual(len(cache._sets[0]), 4)
+
+        with self.assertRaises(ValueError):
+            cache.get(1)
+
+        for i in range(2, 6):
+            self.assertEqual(cache.get(i), i * 10)
 
     def test_lru_algorithm_multiple(self):
-        pass
+        cache = NWaySetAssociativeCache(1, 'LRU', 4)
+        for i in range(1, 9):
+            cache.put(i, 10 * i)
+
+        time.sleep(0.001)
+
+        self.assertEqual(len(cache._sets[0]), 4)
+
+        for i in range(1, 5):
+            with self.assertRaises(ValueError):
+                cache.get(i)
+
+        for i in range(5, 9):
+            self.assertEqual(cache.get(i), i * 10)
 
     def test_mru_algorithm_once(self):
-        pass
+        cache = NWaySetAssociativeCache(1, 'MRU', 2)
+        cache.put(1, 10)
+        cache.put(2, 20)
+        cache.put(3, 30)
+
+        time.sleep(0.001)
+
+        self.assertEqual(len(cache._sets[0]), 2)
+        self.assertEqual(cache._sets[0][1].data, 10)
+        self.assertEqual(cache._sets[0][3].data, 30)
 
     def test_mru_algorithm_multiple(self):
-        pass
+        cache = NWaySetAssociativeCache(1, 'MRU', 4)
+        for i in range(1, 9):
+            cache.put(i, 10 * i)
+
+        time.sleep(0.001)
+
+        self.assertEqual(len(cache._sets[0]), 4)
+        for i in range(4, 8):
+            with self.assertRaises(ValueError):
+                cache.get(i)
+
+        for i in [1, 2, 3, 8]:
+            self.assertEqual(cache.get(i), i * 10)
 
     def test_custom_algorithm(self):
+
+        # TODO: extend the class
+
         pass
 
 
