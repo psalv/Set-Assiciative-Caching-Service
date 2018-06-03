@@ -81,17 +81,11 @@ class GetTestCase(unittest.TestCase):
     def test_get_single_item(self):
         self.cache.put(1, 10)
 
-        while not self.cache._jobs_queue.is_empty():
-            time.sleep(time_spacer)
-
         self.assertEqual(self.cache.get(1), 10)
 
     def test_get_multiple_items(self):
         for i in range(1, 9):
             self.cache.put(i, 10 * i)
-
-        while not self.cache._jobs_queue.is_empty():
-            time.sleep(time_spacer)
 
         for i in range(1, 9):
             self.assertEqual(self.cache.get(i), 10 * i)
@@ -107,9 +101,6 @@ class GetTestCase(unittest.TestCase):
 
         self.cache.put(new_object1, new_object2)
         self.cache.put(new_object2, 'buzz')
-
-        while not self.cache._jobs_queue.is_empty():
-            time.sleep(time_spacer)
 
         self.assertEqual(self.cache.get(1), 10)
         self.assertEqual(self.cache.get(2), 'foo')
@@ -224,18 +215,18 @@ class InvalidInputTestCase(unittest.TestCase):
 
     def test_initialization_with_invalid_replacement_algorithm(self):
         with self.assertRaises(ValueError):
-            cache = NWaySetAssociativeCache(4, "LRV", 32)
+            NWaySetAssociativeCache(4, "LRV", 32)
 
         with self.assertRaises(ValueError):
-            cache = NWaySetAssociativeCache(4, NewObject(), 32)
+            NWaySetAssociativeCache(4, NewObject(), 32)
 
         with self.assertRaises(ValueError):
-            cache = NWaySetAssociativeCache(4, 3, 32)
+            NWaySetAssociativeCache(4, 3, 32)
 
         def mock():
             pass
 
-        cache = NWaySetAssociativeCache(4, mock, 32)
+        NWaySetAssociativeCache(4, mock, 32)
 
 
 class ReplacementAlgorithmTestCase(unittest.TestCase):
@@ -432,16 +423,9 @@ class CacheSizeTestCase(unittest.TestCase):
 
         cache.put(2, 20)
 
-        time.sleep(time_spacer)
-        while not cache._jobs_queue.is_empty():
-            time.sleep(time_spacer)
-
         self.assertEqual(cache.get(2), 20)
 
         cache.put('foo', 'bar')
-
-        while not cache._jobs_queue.is_empty():
-            time.sleep(time_spacer)
 
         self.assertEqual(cache.get('foo'), 'bar')
 
@@ -450,23 +434,13 @@ class CacheSizeTestCase(unittest.TestCase):
 
         cache.put(1, 10)
 
-        while not cache._jobs_queue.is_empty():
-            time.sleep(time_spacer)
-
         self.assertEqual(cache.get(1), 10)
 
         cache.put(2, 20)
 
-        time.sleep(time_spacer)
-        while not cache._jobs_queue.is_empty():
-            time.sleep(time_spacer)
-
         self.assertEqual(cache.get(2), 20)
 
         cache.put('foo', 'bar')
-
-        while not cache._jobs_queue.is_empty():
-            time.sleep(time_spacer)
 
         self.assertEqual(cache.get('foo'), 'bar')
 
@@ -475,9 +449,6 @@ class CacheSizeTestCase(unittest.TestCase):
 
         for i in range(1, 10000):
             cache.put(i, i)
-
-        while not cache._jobs_queue.is_empty():
-            time.sleep(time_spacer)
 
         for i in range(1, 10000 - 128):
             with self.assertRaises(ValueError):

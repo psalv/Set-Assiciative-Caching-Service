@@ -209,7 +209,7 @@ class NWaySetAssociativeCache(object):
             if current_job is not None:
 
                 # Inserting new data
-                if current_job.job_data.key not in self._keys:
+                if current_job.job_data.key not in self._keys and current_job.job_type == CacheAction.PUT:
 
                     # Determine if/which resource needs to be removed
                     remove_key = None
@@ -247,36 +247,53 @@ class NWaySetAssociativeCache(object):
                 # Accessing/updating existing data
                 else:
 
-                    # Exactly one thread can act for a get/update job
-                    if current_job.job_data.key in worker_set:
+                    # If the key has been removed from the data set between job received and job processed
+                    if current_job.job_data.key not in self._keys:
 
-                        current_item = worker_set[current_job.job_data.key]
+                        # Ensuring only one thread acts per job
+                        if current_job is self._jobs_queue.peek():
 
-                        if current_job.job_type == CacheAction.GET:
+                            self._write_lock.acquire()
 
-                            # Temporarily store set index to be used by main thread
-                            self._get_data_set_index = worker_thread_id
+                            self._get_data_set_index = None
                             with self._get_condition:
                                 self._get_condition.notify_all()
 
-                        else:
+                            self._jobs_queue.pop()
 
-                            current_item.data = current_job.job_data.data
+                            self._write_lock.release()
 
-                        if current_item is not self.data_head[worker_thread_id]:
+                    else:
+                        # Exactly one thread can act for a get/update job
+                        if current_job.job_data.key in worker_set:
 
-                            # Updating linked list for keeping track of recent access within the cache
-                            self._update_ordering(current_item, worker_thread_id)
-                            current_item.prev = None
-                            current_item.next = self.data_head[worker_thread_id]
+                            current_item = worker_set[current_job.job_data.key]
 
-                            if self.data_head[worker_thread_id]:
-                                self.data_head[worker_thread_id].prev = worker_set[current_job.job_data.key]
+                            if current_job.job_type == CacheAction.GET:
 
-                            self.data_head[worker_thread_id] = current_item
+                                # Temporarily store set index to be used by main thread
+                                self._get_data_set_index = worker_thread_id
+                                with self._get_condition:
+                                    self._get_condition.notify_all()
 
-                        # The job has been completed
-                        self._jobs_queue.pop()
+                            else:
+
+                                current_item.data = current_job.job_data.data
+
+                            if current_item is not self.data_head[worker_thread_id]:
+
+                                # Updating linked list for keeping track of recent access within the cache
+                                self._update_ordering(current_item, worker_thread_id)
+                                current_item.prev = None
+                                current_item.next = self.data_head[worker_thread_id]
+
+                                if self.data_head[worker_thread_id]:
+                                    self.data_head[worker_thread_id].prev = worker_set[current_job.job_data.key]
+
+                                self.data_head[worker_thread_id] = current_item
+
+                            # The job has been completed
+                            self._jobs_queue.pop()
 
             # Barrier to ensure that all threads finish the loop at the same time
             # This prevents a single thread from taking all of the jobs
@@ -318,12 +335,13 @@ class NWaySetAssociativeCache(object):
         :return: the corresponding data associated with the key within the cache
         :raises: ValueError if the key is not present within the cache
         """
-        if key not in self._keys:
-            raise ValueError("Specified key is not present in cache.")
 
         self._jobs_queue.append(WorkerJob(CacheAction.GET, JobData(key)))
 
         with self._get_condition:
             self._get_condition.wait()
 
-        return self._sets[self._get_data_set_index][key].data
+        if self._get_data_set_index is None:
+            raise ValueError("Specified key is not present in cache.")
+        else:
+            return self._sets[self._get_data_set_index][key].data
