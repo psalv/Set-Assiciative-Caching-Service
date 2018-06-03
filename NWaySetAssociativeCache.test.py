@@ -337,6 +337,88 @@ class ReplacementAlgorithmTestCase(unittest.TestCase):
         with self.assertRaises(ValueError):
             cache.get(3)
 
+    # TODO !!!!!
+
+    def test_lru_get_updates_ordering(self):
+        cache = NWaySetAssociativeCache(1, 'LRU', 2)
+        cache.put(1, 10)
+        cache.put(2, 20)
+
+        while not cache._jobs_queue.is_empty():
+            time.sleep(time_spacer)
+
+        # Expect 1 to be MRU, 2 to be LRU
+        cache.get(1)
+
+        cache.put(3, 30)
+
+        while not cache._jobs_queue.is_empty():
+            time.sleep(time_spacer)
+
+        self.assertEqual(len(cache._sets[0]), 2)
+        self.assertEqual(cache._sets[0][1].data, 10)
+        self.assertEqual(cache._sets[0][3].data, 30)
+
+    def test_mru_get_updates_ordering(self):
+        cache = NWaySetAssociativeCache(1, 'MRU', 2)
+        cache.put(1, 10)
+        cache.put(2, 20)
+
+        while not cache._jobs_queue.is_empty():
+            time.sleep(time_spacer)
+
+        # Expect 1 to be MRU, 2 to be LRU
+        cache.get(1)
+
+        cache.put(3, 30)
+
+        while not cache._jobs_queue.is_empty():
+            time.sleep(time_spacer)
+
+        self.assertEqual(len(cache._sets[0]), 2)
+        self.assertEqual(cache._sets[0][2].data, 20)
+        self.assertEqual(cache._sets[0][3].data, 30)
+
+    def test_lru_updating_updates_ordering(self):
+        cache = NWaySetAssociativeCache(1, 'LRU', 2)
+        cache.put(1, 10)
+        cache.put(2, 20)
+
+        while not cache._jobs_queue.is_empty():
+            time.sleep(time_spacer)
+
+        # Expect 1 to be MRU, 2 to be LRU
+        cache.put(1, 15)
+
+        cache.put(3, 30)
+
+        while not cache._jobs_queue.is_empty():
+            time.sleep(time_spacer)
+
+        self.assertEqual(len(cache._sets[0]), 2)
+        self.assertEqual(cache._sets[0][1].data, 15)
+        self.assertEqual(cache._sets[0][3].data, 30)
+
+    def test_mru_updating_updates_ordering(self):
+        cache = NWaySetAssociativeCache(1, 'MRU', 2)
+        cache.put(1, 10)
+        cache.put(2, 20)
+
+        while not cache._jobs_queue.is_empty():
+            time.sleep(time_spacer)
+
+        # Expect 1 to be MRU, 2 to be LRU
+        cache.put(1, 15)
+
+        cache.put(3, 30)
+
+        while not cache._jobs_queue.is_empty():
+            time.sleep(time_spacer)
+
+        self.assertEqual(len(cache._sets[0]), 2)
+        self.assertEqual(cache._sets[0][2].data, 20)
+        self.assertEqual(cache._sets[0][3].data, 30)
+
 
 class CacheSizeTestCase(unittest.TestCase):
 
