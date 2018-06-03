@@ -2,7 +2,7 @@
 import time
 import unittest
 
-from NWaySetAssociativeCache import NWaySetAssociativeCache
+from n_way_set_associative_cache.NWaySetAssociativeCache import NWaySetAssociativeCache
 
 
 class NewObject(object):
