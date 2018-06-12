@@ -1,0 +1,21 @@
+
+N-Way Set Associative Cache
+
+
+https://en.wikipedia.org/wiki/Cache_Placement_Policies#Set_Associative_Cache
+
+1) Create a (n x m) matrix (n=number of sets, m=cache lines)
+
+PUT
+
+2) Map key onto a set
+3) Place data into set and stire the tag in the associatred tag field for that set
+
+GET
+
+4) Determine set from the key
+5) Compare key with all tag lines, if the tag matches then it's a hit and appropriate data is fetched
+
+
+No threads.
+Keep it simple?
